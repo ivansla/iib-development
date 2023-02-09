@@ -13,15 +13,15 @@
 # limitations under the License.
 
 FROM ubuntu:20.04
-
 LABEL maintainer="islavka2@gmail.com"
 
 # The URL to download the MQ installer from in tar.gz format
-ARG MQ_URL=http://public.dhe.ibm.com/ibmdl/export/pub/software/websphere/messaging/mqadv/mqadv_dev924_ubuntu_x86-64.tar.gz
-ARG IIB_URL=http://public.dhe.ibm.com/ibmdl/export/pub/software/websphere/integration/10.0.0.15-IIB.LINUX64-DEVELOPER.tar.gz
+ARG MQ_URL=http://192.168.15.12:9000/mqadv_dev925_ubuntu_x86-64.tar.gz
 # The MQ packages to install
-#ARG MQ_PACKAGES="MQSeriesRuntime-*.rpm MQSeriesServer-*.rpm MQSeriesMsg*.rpm MQSeriesJava*.rpm MQSeriesJRE*.rpm MQSeriesGSKit*.rpm"
-ARG MQ_PACKAGES="ibmmq-*"
+ARG MQ_PACKAGES="./ibmmq-jre_9.2.5.0_amd64.deb ./ibmmq-runtime_9.2.5.0_amd64.deb ./ibmmq-gskit_9.2.5.0_amd64.deb ./ibmmq-server_9.2.5.0_amd64.deb ./ibmmq-java_9.2.5.0_amd64.deb"
+ARG QM_PORT=''
+ARG QM_NAME=''
+
 
 RUN export DEBIAN_FRONTEND=noninteractive \
   # Optional: Update the command prompt
@@ -45,49 +45,76 @@ RUN export DEBIAN_FRONTEND=noninteractive \
     sed \
     tar \
     util-linux \
-  # Download and extract the MQ installation files
+  # Setting default shell to bash for new users \
+  &&  sed -i 's/SHELL=\/bin\/sh/SHELL=\/bin\/bash/g' /etc/default/useradd \
+  # Download and extract the MQ installation files \
   && mkdir -p /tmp/mq \
   && cd /tmp/mq \
   && curl -LO $MQ_URL \
   && tar -zxvf ./*.tar.gz \
-  # Recommended: Create the mqm user ID with a fixed UID and group, so that the file permissions work between different images
+#   Recommended: Create the mqm user ID with a fixed UID and group, so that the file permissions work between different images
   && groupadd --gid 1000 mqm \
   && useradd --uid 1000 --gid mqm --home-dir /var/mqm mqm \
   && usermod -G mqm root \
-  && useradd mqexplorer \
-  && adduser mqexplorer mqm \
+  && groupadd --gid 2000 mqbrkrs \
+  && useradd --uid 2000 --groups mqbrkrs,mqm --home-dir /var/iibadmin iibadmin \
+  && useradd --uid 3000 --home-dir /var/mqexplorer mqexplorer \
   && cd /tmp/mq/MQServer \
-  # Accept the MQ license
+#   Accept the MQ license
   && ./mqlicense.sh -text_only -accept \
-  # Install MQ using the RPM packages
+#   Install MQ using the RPM packages
   && apt install ./$MQ_PACKAGES \
-  # Recommended: Set the default MQ installation (makes the MQ commands available on the PATH)
+#   Recommended: Set the default MQ installation (makes the MQ commands available on the PATH)
   && /opt/mqm/bin/setmqinst -p /opt/mqm -i \
-  # Clean up all the downloaded files
-  && rm -rf /tmp/mq \
-  && rm -rf /var/lib/apt/lists/* \
-  # IIB
-  && mkdir -p /tmp/iib \
-  && cd /tmp/iib \
-  && curl -LO $IIB_URL \
-  && tar -zxvf ./*.tar.gz \
-  && mv $(ls -d */ | head -n 1) /opt/iib \
-  && rm -rf /tmp/iib \
-  && cd /opt/iib \
-  && ./iib make registry global accept license silently \
-  && cd /opt/iib/server/bin \
-  && echo "alter qmgr chad(enabled)" >> /tmp/init.mqsc \
-  && echo "alter qmgr chlauth(disabled)" >> /tmp/init.mqsc
+    && echo "#########################################################################" \
+    && echo "                 CONFIGURING MQ" \
+    && echo "#########################################################################" \
+    && echo "mqm             hard    nofile          10240" >> /etc/security/limits.conf \
+    && echo "mqm             soft    nofile          10240" >> /etc/security/limits.conf \
+    && echo "mqm             hard    nproc           131072" >> /etc/security/limits.conf \
+    && echo "mqm             soft    nproc           131072" >> /etc/security/limits.conf \
+    && echo "iibadmin        hard    nofile          10240" >> /etc/security/limits.conf \
+    && echo "iibadmin        soft    nofile          10240" >> /etc/security/limits.conf \
+    && echo "iibadmin        hard    nproc           131072" >> /etc/security/limits.conf \
+    && echo "iibadmin        soft    nproc           131072" >> /etc/security/limits.conf \
+    && su - mqm -c "crtmqm -p $QM_PORT -u SYSTEM.DEAD.LETTER.QUEUE $QM_NAME" \
+    && su - mqm -c "strmqm $QM_NAME" \
+    && su - mqm -c "setmqaut -m $QM_NAME -t qmgr -p mqexplorer +connect +inq +dsp" \
+    && su - mqm -c "setmqaut -m $QM_NAME -n SYSTEM.MQEXPLORER.REPLY.MODEL -t queue -p mqexplorer +inq +dsp +get +put" \
+    && su - mqm -c "setmqaut -m $QM_NAME -n SYSTEM.ADMIN.COMMAND.QUEUE -t queue -p mqexplorer +inq +put" \
+    && echo "define channel(SYSTEM.ADMIN.SVRCONN) chltype(svrconn)  like (SYSTEM.AUTO.SVRCONN)" >> /tmp/mq.conf \
+    && su - mqm -c "crtmqm -p 1424 -u SYSTEM.DEAD.LETTER.QUEUE QMgr02" \
+    && su - mqm -c "strmqm QMgr02" \
+    && su - mqm -c "setmqaut -m QMgr02 -t qmgr -p mqexplorer +connect +inq +dsp" \
+    && su - mqm -c "setmqaut -m QMgr02 -n SYSTEM.MQEXPLORER.REPLY.MODEL -t queue -p mqexplorer +inq +dsp +get +put" \
+    && su - mqm -c "setmqaut -m QMgr02 -n SYSTEM.ADMIN.COMMAND.QUEUE -t queue -p mqexplorer +inq +put" \
+    && su - mqm -c "runmqsc $QM_NAME < /tmp/mq.conf" \
+        && su - mqm -c "runmqsc QMgr02 < /tmp/mq.conf" \
+    #   Clean up all the downloaded files
+      && rm -rf /tmp/mq \
+      && rm -rf /var/lib/apt/lists/*
 
-COPY *.sh /usr/local/bin/
-COPY *.mqsc /etc/mqm/
 
-RUN chmod +x /usr/local/bin/*.sh
+
+
+
+
+
+
+
+#  && echo "alter qmgr chad(enabled)" >> /tmp/init.mqsc \
+#  && echo "alter qmgr chlauth(disabled)" >> /tmp/init.mqsc
+#
+#COPY *.sh /usr/local/bin/
+#COPY *.mqsc /etc/mqm/
+
+#RUN chmod +x /usr/local/bin/*.sh
 
 # Always use port 1414 (the Docker administrator can re-map ports at runtime)
-EXPOSE 1414
+#EXPOSE 1414
 
 # Always put the MQ data directory in a Docker volume
-VOLUME /var/mqm
+VOLUME /var/mqm /var/iibadmin /var/mqexplorer
 
-ENTRYPOINT ["mq.sh"]
+#ENTRYPOINT ["mq.sh"]
+CMD ["/bin/bash"]

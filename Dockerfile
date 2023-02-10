@@ -18,7 +18,7 @@ LABEL maintainer="islavka2@gmail.com"
 # The URL to download the MQ installer from in tar.gz format
 ARG MQ_URL=http://192.168.15.12:9000/mqadv_dev925_ubuntu_x86-64.tar.gz
 # The MQ packages to install
-ARG MQ_PACKAGES="./ibmmq-jre_9.2.5.0_amd64.deb ./ibmmq-runtime_9.2.5.0_amd64.deb ./ibmmq-gskit_9.2.5.0_amd64.deb ./ibmmq-server_9.2.5.0_amd64.deb ./ibmmq-java_9.2.5.0_amd64.deb"
+ARG MQ_PACKAGES="./ibmmq-jre_9.2.5.0_amd64.deb ./ibmmq-runtime_9.2.5.0_amd64.deb ./ibmmq-gskit_9.2.5.0_amd64.deb ./ibmmq-server_9.2.5.0_amd64.deb ./ibmmq-java_9.2.5.0_amd64.deb ./ibmmq-samples_9.2.5.0_amd64.deb"
 ARG QM_PORT=''
 ARG QM_NAME=''
 
@@ -44,6 +44,9 @@ RUN export DEBIAN_FRONTEND=noninteractive \
     rpm \
     sed \
     tar \
+    vim \
+    telnet \
+    iputils-ping \
     util-linux \
   # Setting default shell to bash for new users \
   &&  sed -i 's/SHELL=\/bin\/sh/SHELL=\/bin\/bash/g' /etc/default/useradd \
@@ -77,19 +80,37 @@ RUN export DEBIAN_FRONTEND=noninteractive \
     && echo "iibadmin        soft    nofile          10240" >> /etc/security/limits.conf \
     && echo "iibadmin        hard    nproc           131072" >> /etc/security/limits.conf \
     && echo "iibadmin        soft    nproc           131072" >> /etc/security/limits.conf \
-    && su - mqm -c "crtmqm -p $QM_PORT -u SYSTEM.DEAD.LETTER.QUEUE $QM_NAME" \
-    && su - mqm -c "strmqm $QM_NAME" \
-    && su - mqm -c "setmqaut -m $QM_NAME -t qmgr -p mqexplorer +connect +inq +dsp" \
-    && su - mqm -c "setmqaut -m $QM_NAME -n SYSTEM.MQEXPLORER.REPLY.MODEL -t queue -p mqexplorer +inq +dsp +get +put" \
-    && su - mqm -c "setmqaut -m $QM_NAME -n SYSTEM.ADMIN.COMMAND.QUEUE -t queue -p mqexplorer +inq +put" \
     && echo "define channel(SYSTEM.ADMIN.SVRCONN) chltype(svrconn)  like (SYSTEM.AUTO.SVRCONN)" >> /tmp/mq.conf \
-    && su - mqm -c "crtmqm -p 1424 -u SYSTEM.DEAD.LETTER.QUEUE QMgr02" \
-    && su - mqm -c "strmqm QMgr02" \
-    && su - mqm -c "setmqaut -m QMgr02 -t qmgr -p mqexplorer +connect +inq +dsp" \
-    && su - mqm -c "setmqaut -m QMgr02 -n SYSTEM.MQEXPLORER.REPLY.MODEL -t queue -p mqexplorer +inq +dsp +get +put" \
-    && su - mqm -c "setmqaut -m QMgr02 -n SYSTEM.ADMIN.COMMAND.QUEUE -t queue -p mqexplorer +inq +put" \
-    && su - mqm -c "runmqsc $QM_NAME < /tmp/mq.conf" \
-        && su - mqm -c "runmqsc QMgr02 < /tmp/mq.conf" \
+
+#    && su - mqm -c "crtmqm -p $QM_PORT -u SYSTEM.DEAD.LETTER.QUEUE $QM_NAME" \
+#    && mkdir -p /MQHA/$QM_NAME/data \
+#    && mkdir -p /MQHA/$QM_NAME/log \
+#    && mkdir -p /MQHA/QMgr02/data \
+#    && mkdir -p /MQHA/QMgr02/log \
+#    && chown -R iibadmin:mqm /MQHA \
+#    && su - mqm -c "mkdir -p /MQHA/$QM_NAME/data" \
+#    && su - mqm -c "mkdir -p /MQHA/$QM_NAME/log" \
+#    && su - mqm -c "mkdir -p /MQHA/QMgr02/data" \
+#    && su - mqm -c "mkdir -p /MQHA/QMgr02/log" \
+#    && echo "#########################################################################" \
+#    && echo "                 CREATE $QM_NAME" \
+#    && echo "#########################################################################" \
+#    && su - mqm -c "crtmqm -p $QM_PORT -u SYSTEM.DEAD.LETTER.QUEUE -md /MQHA/$QM_NAME/data -ld /MQHA/$QM_NAME/log $QM_NAME" \
+#    && su - mqm -c "strmqm $QM_NAME" \
+#    && su - mqm -c "setmqaut -m $QM_NAME -t qmgr -p mqexplorer +connect +inq +dsp" \
+#    && su - mqm -c "setmqaut -m $QM_NAME -n SYSTEM.MQEXPLORER.REPLY.MODEL -t queue -p mqexplorer +inq +dsp +get +put" \
+#    && su - mqm -c "setmqaut -m $QM_NAME -n SYSTEM.ADMIN.COMMAND.QUEUE -t queue -p mqexplorer +inq +put" \
+#    && su - mqm -c "crtmqm -p 1424 -u SYSTEM.DEAD.LETTER.QUEUE QMgr02" \
+#    && echo "#########################################################################" \
+#    && echo "                 CREATE QMgr02" \
+#    && echo "#########################################################################" \
+#    && su - mqm -c "crtmqm -p 1424 -u SYSTEM.DEAD.LETTER.QUEUE -md /MQHA/$QM_NAME/data -ld /MQHA/$QM_NAME/log $QM_NAME QMgr02" \
+#    && su - mqm -c "strmqm QMgr02" \
+#    && su - mqm -c "setmqaut -m QMgr02 -t qmgr -p mqexplorer +connect +inq +dsp" \
+#    && su - mqm -c "setmqaut -m QMgr02 -n SYSTEM.MQEXPLORER.REPLY.MODEL -t queue -p mqexplorer +inq +dsp +get +put" \
+#    && su - mqm -c "setmqaut -m QMgr02 -n SYSTEM.ADMIN.COMMAND.QUEUE -t queue -p mqexplorer +inq +put" \
+#    && su - mqm -c "runmqsc $QM_NAME < /tmp/mq.conf" \
+#        && su - mqm -c "runmqsc QMgr02 < /tmp/mq.conf" \
     #   Clean up all the downloaded files
       && rm -rf /tmp/mq \
       && rm -rf /var/lib/apt/lists/*
@@ -118,3 +139,4 @@ VOLUME /var/mqm /var/iibadmin /var/mqexplorer
 
 #ENTRYPOINT ["mq.sh"]
 CMD ["/bin/bash"]
+#ENTRYPOINT ["/MQHA/setup.sh", "QMgr01"]

@@ -10,7 +10,6 @@ ip addr show
 
 
 sudo docker build --tag mq-base \
---build-arg MQ_URL=http://localhost:9000/mqadv_dev925_ubuntu_x86-64.tar.gz \
 --build-arg QM_NAME='QMgr01' \
 --build-arg QM_PORT=1414 .
 

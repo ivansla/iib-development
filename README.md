@@ -30,3 +30,8 @@ MQ EXPLORER setup
 sudo docker network create my-network
 sudo docker network connect my-network QM1
 When creating cluster between docker containers, you need to use container names and internal ports in MQExplorer
+
+
+ace must be unzipped under user that will accept license or root if accepted globally
+
+Careful if you accept global license in container, it may break your local ACE installation.

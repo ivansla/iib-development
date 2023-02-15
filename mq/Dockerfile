@@ -14,9 +14,10 @@
 
 FROM ubuntu:20.04
 LABEL maintainer="islavka2@gmail.com"
+VOLUME /var/iibadmin
 
 # The URL to download the MQ installer from in tar.gz format
-ARG MQ_URL=http://10.0.1.229:9000/mqadv_dev925_ubuntu_x86-64.tar.gz
+ARG MQ_URL=http://192.168.15.5:9000/mqadv_dev925_ubuntu_x86-64.tar.gz
 ARG ACE_URL=http://10.0.1.229:9000/12.0.5.0-ACE-LINUX64-DEVELOPER.tar.gz
 # The MQ packages to install
 ARG MQ_PACKAGES="./ibmmq-jre_9.2.5.0_amd64.deb ./ibmmq-runtime_9.2.5.0_amd64.deb ./ibmmq-gskit_9.2.5.0_amd64.deb ./ibmmq-server_9.2.5.0_amd64.deb ./ibmmq-java_9.2.5.0_amd64.deb ./ibmmq-samples_9.2.5.0_amd64.deb"
@@ -58,11 +59,11 @@ RUN export DEBIAN_FRONTEND=noninteractive \
   && tar -zxvf ./*.tar.gz \
 #   Recommended: Create the mqm user ID with a fixed UID and group, so that the file permissions work between different images
   && groupadd --gid 1000 mqm \
-  && useradd --uid 1000 --gid mqm --home-dir /var/mqm mqm \
+  && useradd --uid 1000 --gid mqm --home-dir /MQHA/userdir/mqm mqm \
   && usermod -G mqm root \
   && groupadd --gid 2000 mqbrkrs \
-  && useradd --uid 2000 --groups mqbrkrs,mqm --home-dir /var/iibadmin iibadmin \
-  && useradd --uid 3000 --home-dir /var/mqexplorer mqexplorer \
+  && useradd --uid 2000 --groups mqbrkrs,mqm --home-dir /MQHA/userdir/iibadmin iibadmin \
+  && useradd --uid 3000 --home-dir /MQHA/userdir/mqexplorer mqexplorer \
   && cd /tmp/mq/MQServer \
 #   Accept the MQ license
   && ./mqlicense.sh -text_only -accept \
@@ -84,38 +85,10 @@ RUN export DEBIAN_FRONTEND=noninteractive \
     && echo "define channel(SYSTEM.ADMIN.SVRCONN) chltype(svrconn)  like (SYSTEM.AUTO.SVRCONN)" >> /tmp/mq.conf \
       && rm -rf /tmp/mq \
       && rm -rf /var/lib/apt/lists/*
-#  && su - mqm -c "mkdir -p /tmp/ace" \
-#  && su - mqm -c "cd /tmp/ace" \
-#  && su - mqm -c "curl -LO $ACE_URL" \
-#  && su - mqm -c "tar -zxvf ./*.tar.gz" \
-#  && mv $(ls -d */ | head -n 1) /opt/ace \
-#  && rm -rf /tmp/ace
-#    && cd /opt/ace
-#  && /bin/bash -c ". /opt/ace/server/bin/mqsiprofile"
-
-
-
-
-
-
-
-
-
-#  && echo "alter qmgr chad(enabled)" >> /tmp/init.mqsc \
-#  && echo "alter qmgr chlauth(disabled)" >> /tmp/init.mqsc
-#
-COPY setup.sh /var/iibadmin/
-#COPY 12.0.5.0-ACE-LINUX64-DEVELOPER.tar.gz /var/iibadmin/
-#COPY *.mqsc /etc/mqm/
-
-#RUN chmod +x /usr/local/bin/*.sh
-
-# Always use port 1414 (the Docker administrator can re-map ports at runtime)
-#EXPOSE 1414
-
-# Always put the MQ data directory in a Docker volume
-VOLUME /var/mqm /var/iibadmin /var/mqexplorer
-
 #ENTRYPOINT ["mq.sh"]
+
+COPY setup.sh /var/iibadmin
+RUN chmod +x /var/iibadmin/*.sh
+
 CMD ["/bin/bash"]
 #ENTRYPOINT ["/MQHA/setup.sh", "QMgr01"]

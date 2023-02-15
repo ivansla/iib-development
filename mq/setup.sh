@@ -51,13 +51,13 @@ setup() {
   QM_NAME_02=$3
   QM_PORT_02=$4
 
-  if existsQmgr ${qmgrName}
+  if existsQmgr ${QM_NAME_01}
   then
     echo "No setup required"
   else
-    echo "Queue manager: ${qmgrName}, not installed. Installing now..."
+    echo "Queue manager: ${QM_NAME_01}, not installed. Installing now..."
     install
   fi
 }
 
-setup $1 $2 $3 $4
+setup QMgr01 1414 QMgr02 1424
